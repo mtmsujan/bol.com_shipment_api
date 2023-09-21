@@ -1,0 +1,49 @@
+/* Style the input fields */
+.fancy-input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+  font-size: 16px;
+}
+
+/* Style the buttons */
+.fancy-button,
+.remove-field {
+  padding: 10px 20px;
+  background-color: #0073e6;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.fancy-button:hover {
+  background-color: #005bbf;
+}
+.remove-field {
+  background-color: #c92605;
+}
+
+/* Style the "Add New" button */
+#add-new {
+  background-color: #009933;
+}
+
+#add-new:hover {
+  background-color: #007722;
+}
+
+.api-section {
+  margin-bottom: 20px;
+}
+
+.sync-form {
+  margin-top: 40px;
+}
+
+.my-5 {
+  margin-top: 40px;
+  margin-bottom: 40px;
+}
