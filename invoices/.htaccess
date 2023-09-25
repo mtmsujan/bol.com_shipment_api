@@ -1,0 +1,7 @@
+# Restrict access to PDF files
+Order deny,allow
+Deny from all
+Allow from localhost  # Allow access only from the server itself
+Allow from 127.0.0.1  # Allow access only from localhost
+Allow from ::1       # Allow access only from localhost
+Allow from admin@example.com  # Replace with the email address of the admin user
