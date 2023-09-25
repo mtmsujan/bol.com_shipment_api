@@ -9,6 +9,24 @@ function correct_date_format($input_date){
     return $formatted_date;
 }
 
+// get single order details
+function get_single_order_details( $access_token, $order_id ){
+    if($access_token){
+        $order = "https://api.bol.com/retailer/orders/" . $order_id;
+        $order_data = wp_remote_get($order, array(
+            'headers' => array(
+                "Authorization" => "Bearer $access_token",
+                "Accept" => "application/vnd.retailer.V9+json"
+            )
+        ));
+
+        $order_details = json_decode(wp_remote_retrieve_body($order_data), true);
+        return $order_details;
+    }else{
+        return false;
+    }
+}
+
 // get invoice requests 
 function get_invoice_requests($access_token){
     if($access_token){
@@ -74,6 +92,8 @@ function generate_invoice($invoice_details){
     $total_excluding_vat = $total_inc_vat - $total_vat;
     $total_excluding_vat = number_format($total_excluding_vat, 2, ',', ' ');
     $total_vat = number_format($total_vat, 2, ',', ' ');
+
+    $total_inc_vat = number_format($total_inc_vat, 2, ',', ' ');
 
     foreach($product_details as $product){
         $product_title = $product['product']['title'];
@@ -183,18 +203,14 @@ function bol_com_api_sync_page() {
 
                 $invoice_requests = get_invoice_requests($access_token);
 
-                // echo '<pre>';
-                // print_r($invoice_requests[0]['status']);
-                // echo '</pre>';
-
-                // echo count($orders);
-
                 if($orders){ 
                     foreach($orders as $order){
                         $single_request = getRequestByShipmentId($invoice_requests, $order['shipmentId']);
                         $invoice_status = isset($single_request['statusTransitions']) ? $single_request['statusTransitions'][0]['status'] : 'SHIPPED';
 
                         $single_shipment = single_shipment_details( $access_token, $order['shipmentId']);
+                        $single_order = get_single_order_details( $access_token, $order['order']['orderId']);
+                        $orderItems = $single_order['orderItems'];
                         $api_number = $index+1;
                         $order_number = $order['order']['orderId'];
                         $invoice_number = $order['shipmentId'];
@@ -218,7 +234,7 @@ function bol_com_api_sync_page() {
                             'name' => $name,
                             'type' => $type,
                             'order_date' => $order_date,
-                            'product_details' => $product_details,
+                            'product_details' => $orderItems,
                             'billing_details' => $billing_details, 
                             'shipment_date' => $shipment_date,
                             'amount' => $amount,
@@ -230,7 +246,7 @@ function bol_com_api_sync_page() {
 
                         // order total 
                         $total_inc_vat = 0;
-                        foreach($product_details as $product){
+                        foreach($orderItems as $product){
                             $product_quantity = $product['quantity'];
                             $product_price = $product['unitPrice'];
                             $product_vat = 21;
@@ -255,7 +271,7 @@ function bol_com_api_sync_page() {
                                     'name' => $name,
                                     'type' => $type,
                                     'order_date' => $order_date,
-                                    'product_details' => json_encode($product_details),
+                                    'product_details' => json_encode($orderItems),
                                     'billing_details' => json_encode($billing_details),
                                     'shipment_date' => $shipment_date,
                                     'amount' => number_format($total_inc_vat, 2, '.', ''),
