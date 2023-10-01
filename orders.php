@@ -130,7 +130,9 @@ function bol_com_api_orders_page() {
             // get orders from the table in the database
             global $wpdb;
             $table_name = $wpdb->prefix . 'bol_com_orders';
-            $orders = $wpdb->get_results("SELECT * FROM $table_name WHERE api_number = " . ($index+1), ARRAY_A);
+            // $orders = $wpdb->get_results("SELECT * FROM $table_name WHERE api_number = " . ($index+1), ARRAY_A);
+            // orders based on shipping date (newest first)
+            $orders = $wpdb->get_results("SELECT * FROM $table_name WHERE api_number = " . ($index+1) . " ORDER BY shipment_date DESC", ARRAY_A);
 
             if($orders){ 
                 echo '<table class="wp-list-table widefat fixed striped">';

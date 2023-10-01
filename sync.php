@@ -2,6 +2,181 @@
 
 use Dompdf\Dompdf;
 
+// upload invoice to bol.com while syncing
+function upload_invoice_while_syncing($access_token, $shipment_id, $invoice_url){
+
+    // Upload the invoice
+    if($access_token){
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+        CURLOPT_URL => 'https://api.bol.com/retailer/shipments/invoices/' . $shipment_id,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_ENCODING => '',
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 0,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_POSTFIELDS => array('invoice'=> new CURLFILE($invoice_url, 'application/pdf', 'invoice.pdf')),
+        CURLOPT_HTTPHEADER => array(
+            'Accept: application/vnd.retailer.V10+json',
+            'Authorization: Bearer ' . $access_token
+        ),
+        ));
+        $response = curl_exec($curl);
+        curl_close($curl);
+
+        $response_json = json_decode($response, true);
+
+        if( isset($response_json['status']) && $response_json['status'] == 'PENDING' ){
+            // Update the order status in the database
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'bol_com_orders';
+            $wpdb->update($table_name, array('status' => 'INVOICE_UPLOADED'), array('invoice_number' => $shipment_id));
+
+            return true;
+        }else{
+            return false;
+        }
+
+    }else{
+        return false;
+    }
+}
+
+// sync all orders
+function sync_all_orders(){
+    $api_data = json_decode(get_option('bol_com_api_settings'), true);
+    if (!empty($api_data)) {
+        foreach ($api_data as $index => $api) {
+            $api_key = $api['api_key'];
+            $api_secret = $api['api_secret'];
+            $orders = bol_com_orders($api_key, $api_secret);
+
+            // Get the access token
+            $token_url = 'https://login.bol.com/token?grant_type=client_credentials';
+            $basic_auth = base64_encode($api_key . ':' . $api_secret);
+            $token_data = wp_remote_post($token_url, array(
+                'headers' => array(
+                    "Authorization" => "Basic $basic_auth"
+                )
+            ));
+            $token_output = json_decode(wp_remote_retrieve_body($token_data), true);
+            $access_token = $token_output['access_token'];
+
+            $invoice_requests = get_invoice_requests($access_token);
+
+            if($orders){ 
+                foreach($orders as $order){
+                    $single_request = getRequestByShipmentId($invoice_requests, $order['shipmentId']);
+                    $invoice_status = isset($single_request['statusTransitions']) ? $single_request['statusTransitions'][0]['status'] : 'SHIPPED';
+
+                    $single_shipment = single_shipment_details( $access_token, $order['shipmentId']);
+                    $single_order = get_single_order_details( $access_token, $order['order']['orderId']);
+                    $orderItems = $single_order['orderItems'];
+                    $api_number = $index+1;
+                    $order_number = $order['order']['orderId'];
+                    $invoice_number = $order['shipmentId'];
+                    $name = $single_shipment['billingDetails']['firstName'] . ' ' . $single_shipment['billingDetails']['surname'];
+                    $type = 'Private';
+                    $order_date = $single_shipment['order']['orderPlacedDateTime'];
+                    $order_date = date('d-m-Y h:i a', strtotime($order_date));
+                    $shipment_date = $single_shipment['shipmentDateTime'];
+                    $shipment_date = date('d-m-Y h:i a', strtotime($shipment_date));
+                    $product_details = $single_shipment['shipmentItems'];
+                    $billing_details = $single_shipment['billingDetails'];
+                    $amount = $single_shipment['shipmentItems'][0]['unitPrice'];
+                    $status =  'SHIPPED';
+                    $generated_invoice_url = "";
+
+                    // Generate the invoice
+                    $invoice_details = array(
+                        'id' => $api_number,
+                        'order_number' => $order_number,
+                        'invoice_number' => $invoice_number,
+                        'name' => $name,
+                        'type' => $type,
+                        'order_date' => $order_date,
+                        'product_details' => $orderItems,
+                        'billing_details' => $billing_details, 
+                        'shipment_date' => $shipment_date,
+                        'amount' => $amount,
+                        'status' => $status,
+                        'generated_invoice_url' => $generated_invoice_url
+                    );
+
+                    $generated_invoice_url = generate_invoice($invoice_details);
+
+                    // order total 
+                    $total_inc_vat = 0;
+                    foreach($orderItems as $product){
+                        $product_quantity = $product['quantity'];
+                        $product_price = $product['unitPrice'];
+                        $product_vat = 21;
+                        $product_total = $product_price * $product_quantity;
+                        $total_inc_vat += $product_total;
+                    }
+        
+                    // Save the order in database
+                    global $wpdb;
+                    $table_name = $wpdb->prefix . 'bol_com_orders';
+                    // check if the order already exists
+                    $order_exists = $wpdb->get_results("SELECT * FROM $table_name WHERE order_number = '$order_number'");
+                    if($order_exists){
+                        if($order_exists[0]->status == "SHIPPED"){
+                            upload_invoice_while_syncing($access_token, $order_exists[0]->invoice_number, $order_exists[0]->generated_invoice_url);
+                        }
+                        continue;
+                    }else{
+                        $wpdb->insert(
+                            $table_name,
+                            array(
+                                'api_number' => $api_number,
+                                'order_number' => $order_number,
+                                'invoice_number' => $invoice_number,
+                                'name' => $name,
+                                'type' => $type,
+                                'order_date' => $order_date,
+                                'product_details' => json_encode($orderItems),
+                                'billing_details' => json_encode($billing_details),
+                                'shipment_date' => $shipment_date,
+                                'amount' => number_format($total_inc_vat, 2, '.', ''),
+                                'status' => $invoice_status,
+                                'generated_invoice_url' => $generated_invoice_url
+                            )
+                        );
+                    }
+                    
+                }
+            }
+        }
+    } else {
+        echo '<p>No API data found.</p>';
+    }
+}
+
+// shcedule cron job to sync all orders 
+function custom_cron_schedule($schedules) {
+    $schedules['1_minute'] = array(
+        'interval' => 60, // 1 minute in seconds
+        'display'  => __('Every Minute')
+    );
+    return $schedules;
+}
+add_filter('cron_schedules', 'custom_cron_schedule');
+
+function schedule_custom_cron() {
+    if (!wp_next_scheduled('sync_orders_through_cron_job')) {
+        wp_schedule_event(time(), '1_minute', 'sync_orders_through_cron_job');
+    }
+}
+add_action('init', 'schedule_custom_cron');
+add_action('admin_init', 'schedule_custom_cron');
+
+add_action('sync_orders_through_cron_job', 'sync_all_orders');
+
+
+
 // date_format
 function correct_date_format($input_date){
     $date_object = DateTime::createFromFormat('d-m-Y h:i A', $input_date);
@@ -183,110 +358,7 @@ function bol_com_api_sync_page() {
     echo '<h2>Sync your orders</h2>';
 
     if( isset( $_POST['sync-orders'] ) ){
-        $api_data = json_decode(get_option('bol_com_api_settings'), true);
-        if (!empty($api_data)) {
-            foreach ($api_data as $index => $api) {
-                $api_key = $api['api_key'];
-                $api_secret = $api['api_secret'];
-                $orders = bol_com_orders($api_key, $api_secret);
-
-                // Get the access token
-                $token_url = 'https://login.bol.com/token?grant_type=client_credentials';
-                $basic_auth = base64_encode($api_key . ':' . $api_secret);
-                $token_data = wp_remote_post($token_url, array(
-                    'headers' => array(
-                        "Authorization" => "Basic $basic_auth"
-                    )
-                ));
-                $token_output = json_decode(wp_remote_retrieve_body($token_data), true);
-                $access_token = $token_output['access_token'];
-
-                $invoice_requests = get_invoice_requests($access_token);
-
-                if($orders){ 
-                    foreach($orders as $order){
-                        $single_request = getRequestByShipmentId($invoice_requests, $order['shipmentId']);
-                        $invoice_status = isset($single_request['statusTransitions']) ? $single_request['statusTransitions'][0]['status'] : 'SHIPPED';
-
-                        $single_shipment = single_shipment_details( $access_token, $order['shipmentId']);
-                        $single_order = get_single_order_details( $access_token, $order['order']['orderId']);
-                        $orderItems = $single_order['orderItems'];
-                        $api_number = $index+1;
-                        $order_number = $order['order']['orderId'];
-                        $invoice_number = $order['shipmentId'];
-                        $name = $single_shipment['billingDetails']['firstName'] . ' ' . $single_shipment['billingDetails']['surname'];
-                        $type = 'Private';
-                        $order_date = $single_shipment['order']['orderPlacedDateTime'];
-                        $order_date = date('d-m-Y h:i a', strtotime($order_date));
-                        $shipment_date = $single_shipment['shipmentDateTime'];
-                        $shipment_date = date('d-m-Y h:i a', strtotime($shipment_date));
-                        $product_details = $single_shipment['shipmentItems'];
-                        $billing_details = $single_shipment['billingDetails'];
-                        $amount = $single_shipment['shipmentItems'][0]['unitPrice'];
-                        $status =  'SHIPPED';
-                        $generated_invoice_url = "";
-
-                        // Generate the invoice
-                        $invoice_details = array(
-                            'id' => $api_number,
-                            'order_number' => $order_number,
-                            'invoice_number' => $invoice_number,
-                            'name' => $name,
-                            'type' => $type,
-                            'order_date' => $order_date,
-                            'product_details' => $orderItems,
-                            'billing_details' => $billing_details, 
-                            'shipment_date' => $shipment_date,
-                            'amount' => $amount,
-                            'status' => $status,
-                            'generated_invoice_url' => $generated_invoice_url
-                        );
-
-                        $generated_invoice_url = generate_invoice($invoice_details);
-
-                        // order total 
-                        $total_inc_vat = 0;
-                        foreach($orderItems as $product){
-                            $product_quantity = $product['quantity'];
-                            $product_price = $product['unitPrice'];
-                            $product_vat = 21;
-                            $product_total = $product_price * $product_quantity;
-                            $total_inc_vat += $product_total;
-                        }
-            
-                        // Save the order in database
-                        global $wpdb;
-                        $table_name = $wpdb->prefix . 'bol_com_orders';
-                        // check if the order already exists
-                        $order_exists = $wpdb->get_results("SELECT * FROM $table_name WHERE order_number = '$order_number'");
-                        if($order_exists){
-                            continue;
-                        }else{
-                            $wpdb->insert(
-                                $table_name,
-                                array(
-                                    'api_number' => $api_number,
-                                    'order_number' => $order_number,
-                                    'invoice_number' => $invoice_number,
-                                    'name' => $name,
-                                    'type' => $type,
-                                    'order_date' => $order_date,
-                                    'product_details' => json_encode($orderItems),
-                                    'billing_details' => json_encode($billing_details),
-                                    'shipment_date' => $shipment_date,
-                                    'amount' => number_format($total_inc_vat, 2, '.', ''),
-                                    'status' => $invoice_status,
-                                    'generated_invoice_url' => $generated_invoice_url
-                                )
-                            );
-                        }
-                        
-                    }
-                }
-            }
-        } else {
-            echo '<p>No API data found.</p>';
-        }
+        sync_all_orders();
         echo '<div class="notice notice-success is-dismissible"><p>Orders synced successfully.</p></div>';
     }
 
