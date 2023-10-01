@@ -323,7 +323,8 @@ function generate_invoice($invoice_details){
 
 
     $dompdf = new Dompdf();
-    $html = file_get_contents(__DIR__ . '/sample.html');
+    // $html = file_get_contents(__DIR__ . '/sample.html');
+    $html = invoice_sample_html();
     $html = str_replace('{{name}}', $name, $html);
     $html = str_replace('{{streetName}}', $streetName, $html);
     $html = str_replace('{{houseNumber}}', $houseNumber, $html);

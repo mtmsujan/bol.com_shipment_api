@@ -11,6 +11,7 @@ Text Domain: bolapi
 */
 
 // include the orders and sync page
+include_once('invoice_sample.php');
 include_once('table.php');
 include_once('pdf-generator.php');
 include_once('orders.php');
@@ -165,6 +166,7 @@ function bol_com_api_modify_invoice(){
     $invoice_whatsapp_number = get_option('invoice_whatsapp_number') == '' ? '+31 (0) 683 926 724' : get_option('invoice_whatsapp_number');
     $invoice_chamber_of_commerce = get_option('invoice_chamber_of_commerce') == '' ? 'KvK' : get_option('invoice_chamber_of_commerce');
     $invoice_chamber_of_commerce_number = get_option('invoice_chamber_of_commerce_number') == '' ? '83863966' : get_option('invoice_chamber_of_commerce_number');
+    $invoice_phone_title = get_option('invoice_phone_title') == '' ? 'Telefoon' : get_option('invoice_phone_title');
     $invoice_phone_number = get_option('invoice_phone_number') == '' ? '+31 (0) 180 700 209' : get_option('invoice_phone_number');
     $invoice_vat_number = get_option('invoice_vat_number') == '' ? 'NL003883640B02' : get_option('invoice_vat_number');
     $invoice_bank = get_option('invoice_bank') == '' ? 'Bank' : get_option('invoice_bank');
@@ -193,6 +195,7 @@ function bol_com_api_modify_invoice(){
         $invoice_whatsapp_number = $_POST['invoice_whatsapp_number'];
         $invoice_chamber_of_commerce = $_POST['invoice_chamber_of_commerce'];
         $invoice_chamber_of_commerce_number = $_POST['invoice_chamber_of_commerce_number'];
+        $invoice_phone_title = $_POST['invoice_phone_title'];
         $invoice_phone_number = $_POST['invoice_phone_number'];
         $invoice_vat_number = $_POST['invoice_vat_number'];
         $invoice_bank = $_POST['invoice_bank'];
@@ -218,6 +221,7 @@ function bol_com_api_modify_invoice(){
         update_option('invoice_whatsapp_number', $invoice_whatsapp_number);
         update_option('invoice_chamber_of_commerce', $invoice_chamber_of_commerce);
         update_option('invoice_chamber_of_commerce_number', $invoice_chamber_of_commerce_number);
+        update_option('invoice_phone_title', $invoice_phone_title);
         update_option('invoice_phone_number', $invoice_phone_number);
         update_option('invoice_vat_number', $invoice_vat_number);
         update_option('invoice_bank', $invoice_bank);
@@ -414,6 +418,16 @@ function bol_com_api_modify_invoice(){
                     name="invoice_chamber_of_commerce_number"
                     placeholder="83863966"
                     value="<?php echo $invoice_chamber_of_commerce_number; ?>"
+                />
+
+                <hr />
+                <label>Telefoon</label>
+                <input
+                    type="text"
+                    class="fancy-input"
+                    name="invoice_phone_title"
+                    placeholder="Telefoon"
+                    value="<?php echo $invoice_phone_title; ?>"
                 />
 
                 <hr />
