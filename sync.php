@@ -78,6 +78,7 @@ function sync_all_orders(){
                     $order_number = $order['order']['orderId'];
                     $invoice_number = $order['shipmentId'];
                     $name = $single_shipment['billingDetails']['firstName'] . ' ' . $single_shipment['billingDetails']['surname'];
+                    $company_name = isset($single_shipment['billingDetails']['company']) ? $single_shipment['billingDetails']['company'] : '';
                     $type = 'Private';
                     $order_date = $single_shipment['order']['orderPlacedDateTime'];
                     $order_date = date('d-m-Y h:i a', strtotime($order_date));
@@ -95,6 +96,7 @@ function sync_all_orders(){
                         'order_number' => $order_number,
                         'invoice_number' => $invoice_number,
                         'name' => $name,
+                        'company' => $company_name,
                         'type' => $type,
                         'order_date' => $order_date,
                         'product_details' => $orderItems,
@@ -236,6 +238,7 @@ function generate_invoice($invoice_details){
     $order_number = isset($invoice_details['order_number']) ? $invoice_details['order_number'] : '';
     $invoice_number = isset($invoice_details['invoice_number']) ? $invoice_details['invoice_number'] : '';
     $name = isset($invoice_details['name']) ? $invoice_details['name'] : '';
+    $company_name = isset($invoice_details['company']) ? $invoice_details['company'] : '';
     $type = isset($invoice_details['type']) ? $invoice_details['type'] : '';
     $order_date = isset($invoice_details['order_date']) ? $invoice_details['order_date'] : '';
     $order_date = correct_date_format($order_date);
@@ -325,6 +328,7 @@ function generate_invoice($invoice_details){
     $dompdf = new Dompdf();
     // $html = file_get_contents(__DIR__ . '/sample.html');
     $html = invoice_sample_html();
+    $html = str_replace('{{companyName}}', $company_name, $html);
     $html = str_replace('{{name}}', $name, $html);
     $html = str_replace('{{streetName}}', $streetName, $html);
     $html = str_replace('{{houseNumber}}', $houseNumber, $html);

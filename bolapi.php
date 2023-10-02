@@ -34,26 +34,27 @@ register_deactivation_hook(__FILE__, 'bol_com_plugin_deactivate');
 function bol_com_api_menu() {
     // Add menu page for Bol.com API
     add_menu_page(
-        'Bol.com API',
-        'Bol.com API',
+        'Bol Invoice',
+        'Bol Invoice',
         'manage_options',
-        'bol_com_api_menu',
-        'bol_com_api_menu_page'
+        'bol_com_orders',
+        'bol_com_api_orders_page',
+        'https://whiteboardmaster.shop/wp-content/uploads/2023/10/euro-symbol_16.png'
     );
 
     // Add submenu page for Orders
     add_submenu_page(
-        'bol_com_api_menu', // Parent menu slug
-        'Orders', // Page title
-        'Orders', // Menu title
+        'bol_com_orders', // Parent menu slug
+        'API Settings', // Page title
+        'API Settings', // Menu title
         'manage_options',
-        'bol_com_api_orders', // Submenu slug
-        'bol_com_api_orders_page' // Callback function to display Orders page
+        'bol_com_api_settings', // Submenu slug
+        'bol_com_api_menu_page' // Callback function to display Orders page
     );
 
     // Add submenu page for Orders
     add_submenu_page(
-        'bol_com_api_menu', // Parent menu slug
+        'bol_com_orders', // Parent menu slug
         'Sync Orders', // Page title
         'Sync Orders', // Menu title
         'manage_options',
@@ -63,7 +64,7 @@ function bol_com_api_menu() {
 
     // Add submenu page for Orders
     add_submenu_page(
-        'bol_com_api_menu', // Parent menu slug
+        'bol_com_orders', // Parent menu slug
         'Modify Invoice', // Page title
         'Modify Invoice', // Menu title
         'manage_options',
@@ -78,12 +79,14 @@ function save_bol_com_api_settings() {
     if (isset($_POST['save-settings'])) {
         $api_data = array();
 
-        if (isset($_POST['api_key']) && isset($_POST['api_secret'])) {
+        if (isset($_POST['api_key']) && isset($_POST['api_secret']) && isset($_POST['api_name'])) {
+            $api_name = $_POST['api_name'];
             $api_keys = $_POST['api_key'];
             $api_secrets = $_POST['api_secret'];
 
             foreach ($api_keys as $key => $value) {
                 $api_data[] = array(
+                    'api_name' => $api_name[$key],
                     'api_key' => $value,
                     'api_secret' => $api_secrets[$key]
                 );
@@ -92,6 +95,9 @@ function save_bol_com_api_settings() {
 
         // Save the data as JSON in wp_options
         update_option('bol_com_api_settings', json_encode($api_data));
+
+        // add a success message
+        echo '<div class="notice notice-success is-dismissible"><p>Settings saved successfully.</p></div>';
     }
 }
 
@@ -112,8 +118,13 @@ function bol_com_api_menu_page() {
                         ?>
                         <div class="api-section">
                             <h2>Bol.com API <?php echo $key + 1; ?></h2>
+
+                            <label>API Name</label>
+                            <input type="text" class="fancy-input" name="api_name[]" placeholder="API Name" value="<?php echo $value['api_name']; ?>" />
+
                             <label>API Key</label>
                             <input type="text" class="fancy-input" name="api_key[]" placeholder="API Key" value="<?php echo $value['api_key']; ?>" />
+
                             <label>API Secret</label>
                             <input type="text" class="fancy-input" name="api_secret[]" placeholder="API Secret" value="<?php echo $value['api_secret']; ?>" />
                             <button class="remove-field">Remove</button>
@@ -134,7 +145,7 @@ function bol_com_api_menu_page() {
 
             $("#add-new").click(function(e) {
                 e.preventDefault();
-                var newField = '<div class="api-section"><h2>New API Settings</h2><label>API Key</label><input type="text" class="fancy-input" name="api_key[]" placeholder="API Key" /> <label>API Secret</label><input type="text" class="fancy-input" name="api_secret[]" placeholder="API Secret" /> <button class="bol-button remove-field">Remove</button><hr></div>';
+                var newField = '<div class="api-section"><h2>New API Settings</h2><label>API Name</label><input type="text" class="fancy-input" name="api_name[]" placeholder="API Name" /><label>API Key</label><input type="text" class="fancy-input" name="api_key[]" placeholder="API Key" /> <label>API Secret</label><input type="text" class="fancy-input" name="api_secret[]" placeholder="API Secret" /> <button class="bol-button remove-field">Remove</button><hr></div>';
                 $("#api-fields").append(newField);
             });
 
@@ -148,36 +159,40 @@ function bol_com_api_menu_page() {
 
 // add some fields to modify the hardcoded texts of the invoice 
 function bol_com_api_modify_invoice(){
-    $invoice_title = get_option('invoice_title') == '' ? 'Factuur' : get_option('invoice_title');
-    $invoice_order_date = get_option('invoice_order_date') == '' ? 'Orderdatum' : get_option('invoice_order_date');
-    $invoice_order_number = get_option('invoice_order_number') == '' ? 'Ordernummer Bol' : get_option('invoice_order_number');
-    $invoice_date = get_option('invoice_date') == '' ? 'Factuurdatum' : get_option('invoice_date');
-    $invoice_number = get_option('invoice_number') == '' ? 'Factuurnummer' : get_option('invoice_number');
-    $invoice_due_date = get_option('invoice_due_date') == '' ? 'Vervaldatum' : get_option('invoice_due_date');
-    $invoice_paid_date = get_option('invoice_paid_date') == '' ? 'n.v.t. (betaald via Bol.com)' : get_option('invoice_paid_date');
-    $invoice_product_name = get_option('invoice_product_name') == '' ? 'Productnaam' : get_option('invoice_product_name');
-    $invoice_product_amount = get_option('invoice_product_amount') == '' ? 'Aantal' : get_option('invoice_product_amount');
-    $invoice_product_price = get_option('invoice_product_price') == '' ? 'Prijs' : get_option('invoice_product_price');
-    $invoice_product_tax = get_option('invoice_product_tax') == '' ? 'BTW' : get_option('invoice_product_tax');
-    $invoice_product_subtotal = get_option('invoice_product_subtotal') == '' ? 'Subtotaal excl. BTW' : get_option('invoice_product_subtotal');
-    $invoice_product_total = get_option('invoice_product_total') == '' ? 'Totaal excl. BTW' : get_option('invoice_product_total');
-    $invoice_product_total_tax = get_option('invoice_product_total_tax') == '' ? 'Totaal incl. BTW' : get_option('invoice_product_total_tax');
-    $invoice_whatsapp = get_option('invoice_whatsapp') == '' ? 'Whatsapp' : get_option('invoice_whatsapp');
-    $invoice_whatsapp_number = get_option('invoice_whatsapp_number') == '' ? '+31 (0) 683 926 724' : get_option('invoice_whatsapp_number');
-    $invoice_chamber_of_commerce = get_option('invoice_chamber_of_commerce') == '' ? 'KvK' : get_option('invoice_chamber_of_commerce');
-    $invoice_chamber_of_commerce_number = get_option('invoice_chamber_of_commerce_number') == '' ? '83863966' : get_option('invoice_chamber_of_commerce_number');
-    $invoice_phone_title = get_option('invoice_phone_title') == '' ? 'Telefoon' : get_option('invoice_phone_title');
-    $invoice_phone_number = get_option('invoice_phone_number') == '' ? '+31 (0) 180 700 209' : get_option('invoice_phone_number');
-    $invoice_vat_number = get_option('invoice_vat_number') == '' ? 'NL003883640B02' : get_option('invoice_vat_number');
-    $invoice_bank = get_option('invoice_bank') == '' ? 'Bank' : get_option('invoice_bank');
-    $invoice_bank_number = get_option('invoice_bank_number') == '' ? 'NL89KNAB0411483749' : get_option('invoice_bank_number');
-    $invoice_bank_bic = get_option('invoice_bank_bic') == '' ? 'BIC' : get_option('invoice_bank_bic');
-    $invoice_bank_bic_number = get_option('invoice_bank_bic_number') == '' ? 'KNABNL2H' : get_option('invoice_bank_bic_number');
-    $invoice_address = get_option('invoice_address') == '' ? 'Cornelis Trooststraat 15 - 2923 CE - Krimpen aan den IJssel - Nederland' : get_option('invoice_address');
+    $invoice_title = get_option('invoice_title') == '' ? '' : get_option('invoice_title');
+    // $company_name = get_option('company_name') == '' ? 'Whiteboardmaster' : get_option('company_name');
+    $company_logo = get_option('company_logo') == '' ? 'https://whiteboardmaster.shop/wp-content/uploads/2023/10/whiteboardmaster.png' : get_option('company_logo');
+    $invoice_order_date = get_option('invoice_order_date') == '' ? '' : get_option('invoice_order_date');
+    $invoice_order_number = get_option('invoice_order_number') == '' ? '' : get_option('invoice_order_number');
+    $invoice_date = get_option('invoice_date') == '' ? '' : get_option('invoice_date');
+    $invoice_number = get_option('invoice_number') == '' ? '' : get_option('invoice_number');
+    $invoice_due_date = get_option('invoice_due_date') == '' ? '' : get_option('invoice_due_date');
+    $invoice_paid_date = get_option('invoice_paid_date') == '' ? '' : get_option('invoice_paid_date');
+    $invoice_product_name = get_option('invoice_product_name') == '' ? '' : get_option('invoice_product_name');
+    $invoice_product_amount = get_option('invoice_product_amount') == '' ? '' : get_option('invoice_product_amount');
+    $invoice_product_price = get_option('invoice_product_price') == '' ? '' : get_option('invoice_product_price');
+    $invoice_product_tax = get_option('invoice_product_tax') == '' ? '' : get_option('invoice_product_tax');
+    $invoice_product_subtotal = get_option('invoice_product_subtotal') == '' ? '' : get_option('invoice_product_subtotal');
+    $invoice_product_total = get_option('invoice_product_total') == '' ? '' : get_option('invoice_product_total');
+    $invoice_product_total_tax = get_option('invoice_product_total_tax') == '' ? '' : get_option('invoice_product_total_tax');
+    $invoice_whatsapp = get_option('invoice_whatsapp') == '' ? '' : get_option('invoice_whatsapp');
+    $invoice_whatsapp_number = get_option('invoice_whatsapp_number') == '' ? '' : get_option('invoice_whatsapp_number');
+    $invoice_chamber_of_commerce = get_option('invoice_chamber_of_commerce') == '' ? '' : get_option('invoice_chamber_of_commerce');
+    $invoice_chamber_of_commerce_number = get_option('invoice_chamber_of_commerce_number') == '' ? '' : get_option('invoice_chamber_of_commerce_number');
+    $invoice_phone_title = get_option('invoice_phone_title') == '' ? '' : get_option('invoice_phone_title');
+    $invoice_phone_number = get_option('invoice_phone_number') == '' ? '' : get_option('invoice_phone_number');
+    $invoice_vat_number = get_option('invoice_vat_number') == '' ? '' : get_option('invoice_vat_number');
+    $invoice_bank = get_option('invoice_bank') == '' ? '' : get_option('invoice_bank');
+    $invoice_bank_number = get_option('invoice_bank_number') == '' ? '' : get_option('invoice_bank_number');
+    $invoice_bank_bic = get_option('invoice_bank_bic') == '' ? '' : get_option('invoice_bank_bic');
+    $invoice_bank_bic_number = get_option('invoice_bank_bic_number') == '' ? '' : get_option('invoice_bank_bic_number');
+    $invoice_address = get_option('invoice_address') == '' ? '' : get_option('invoice_address');
 
     // save the settings
     if (isset($_POST['save-settings'])) {
         $invoice_title = $_POST['invoice_title'];
+        // $company_name = $_POST['company_name'];
+        $company_logo = $_POST['company_logo'];
         $invoice_order_date = $_POST['invoice_order_date'];
         $invoice_order_number = $_POST['invoice_order_number'];
         $invoice_date = $_POST['invoice_date'];
@@ -204,6 +219,8 @@ function bol_com_api_modify_invoice(){
         $invoice_bank_bic_number = $_POST['invoice_bank_bic_number'];
         $invoice_address = $_POST['invoice_address'];
         update_option('invoice_title', $invoice_title);
+        // update_option('company_name', $company_name);
+        update_option('company_logo', $company_logo);
         update_option('invoice_order_date', $invoice_order_date);
         update_option('invoice_order_number', $invoice_order_number);
         update_option('invoice_date', $invoice_date);
@@ -241,270 +258,288 @@ function bol_com_api_modify_invoice(){
             <div id="api-fields">
                 <!-- Fields will be added here -->
                 <div class="api-section">
-                <label>Factuur</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_title"
-                    placeholder="Factuur"
-                    value="<?php echo $invoice_title; ?>"
-                />
+                    <label>Factuur</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_title"
+                        placeholder="Factuur"
+                        value="<?php echo $invoice_title; ?>"
+                    />
 
-                <hr />
-                <label>Orderdatum</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_order_date"
-                    placeholder="Orderdatum"
-                    value="<?php echo $invoice_order_date; ?>"
-                />
+                    <!-- <label>Whiteboardmaster</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="company_name"
+                        placeholder="Whiteboardmaster"
+                        value="<?php echo $company_name; ?>"
+                    /> -->
 
-                <hr />
-                <label>Ordernummer Bol</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_order_number"
-                    placeholder="Ordernummer Bol"
-                    value="<?php echo $invoice_order_number; ?>"
-                />
+                    <label>Company Logo</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="company_logo"
+                        placeholder="logo url"
+                        value="<?php echo $company_logo; ?>"
+                    />
 
-                <hr />
-                <label>Factuurdatum</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_date"
-                    placeholder="Factuurdatum"
-                    value="<?php echo $invoice_date; ?>"
-                />
+                    <hr />
+                    <label>Orderdatum</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_order_date"
+                        placeholder="Orderdatum"
+                        value="<?php echo $invoice_order_date; ?>"
+                    />
 
-                <hr />
-                <label>Factuurnummer</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_number"
-                    placeholder="Factuurnummer"
-                    value="<?php echo $invoice_number; ?>"
-                />
+                    <hr />
+                    <label>Ordernummer Bol</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_order_number"
+                        placeholder="Ordernummer Bol"
+                        value="<?php echo $invoice_order_number; ?>"
+                    />
 
-                <hr />
-                <label>Vervaldatum</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_due_date"
-                    placeholder="Vervaldatum"
-                    value="<?php echo $invoice_due_date; ?>"
-                />
+                    <hr />
+                    <label>Factuurdatum</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_date"
+                        placeholder="Factuurdatum"
+                        value="<?php echo $invoice_date; ?>"
+                    />
 
-                <hr />
-                <label>n.v.t. (betaald via Bol.com)</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_paid_date"
-                    placeholder="n.v.t. (betaald via Bol.com)"
-                    value="<?php echo $invoice_paid_date; ?>"
-                />
+                    <hr />
+                    <label>Factuurnummer</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_number"
+                        placeholder="Factuurnummer"
+                        value="<?php echo $invoice_number; ?>"
+                    />
 
-                <hr />
-                <label>Productnaam</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_name"
-                    placeholder="Productnaam"
-                    value="<?php echo $invoice_product_name; ?>"
-                />
+                    <hr />
+                    <label>Vervaldatum</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_due_date"
+                        placeholder="Vervaldatum"
+                        value="<?php echo $invoice_due_date; ?>"
+                    />
 
-                <hr />
-                <label>Aantal</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_amount"
-                    placeholder="Aantal"
-                    value="<?php echo $invoice_product_amount; ?>"
-                />
+                    <hr />
+                    <label>n.v.t. (betaald via Bol.com)</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_paid_date"
+                        placeholder="n.v.t. (betaald via Bol.com)"
+                        value="<?php echo $invoice_paid_date; ?>"
+                    />
 
-                <hr />
-                <label>Prijs</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_price"
-                    placeholder="Prijs"
-                    value="<?php echo $invoice_product_price; ?>"
-                />
+                    <hr />
+                    <label>Productnaam</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_name"
+                        placeholder="Productnaam"
+                        value="<?php echo $invoice_product_name; ?>"
+                    />
 
-                <hr />
-                <label>BTW</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_tax"
-                    placeholder="BTW"
-                    value="<?php echo $invoice_product_tax; ?>"
-                />
+                    <hr />
+                    <label>Aantal</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_amount"
+                        placeholder="Aantal"
+                        value="<?php echo $invoice_product_amount; ?>"
+                    />
 
-                <hr />
-                <label>Subtotaal excl. BTW</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_subtotal"
-                    placeholder="Subtotaal excl. BTW"
-                    value="<?php echo $invoice_product_subtotal; ?>"
-                />
+                    <hr />
+                    <label>Prijs</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_price"
+                        placeholder="Prijs"
+                        value="<?php echo $invoice_product_price; ?>"
+                    />
 
-                <hr />
-                <label>Totaal excl. BTW</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_total"
-                    placeholder="Totaal excl. BTW"
-                    value="<?php echo $invoice_product_total; ?>"
-                />
+                    <hr />
+                    <label>BTW</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_tax"
+                        placeholder="BTW"
+                        value="<?php echo $invoice_product_tax; ?>"
+                    />
 
-                <hr />
-                <label>Totaal incl. BTW</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_product_total_tax"
-                    placeholder="Totaal incl. BTW"
-                    value="<?php echo $invoice_product_total_tax; ?>"
-                />
+                    <hr />
+                    <label>Subtotaal excl. BTW</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_subtotal"
+                        placeholder="Subtotaal excl. BTW"
+                        value="<?php echo $invoice_product_subtotal; ?>"
+                    />
 
-                <hr />
-                <label>Whatsapp</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_whatsapp"
-                    placeholder="Whatsapp"
-                    value="<?php echo $invoice_whatsapp; ?>"
-                />
+                    <hr />
+                    <label>Totaal excl. BTW</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_total"
+                        placeholder="Totaal excl. BTW"
+                        value="<?php echo $invoice_product_total; ?>"
+                    />
 
-                <hr />
-                <label>+31 (0) 683 926 724</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_whatsapp_number"
-                    placeholder="+31 (0) 683 926 724"
-                    value="<?php echo $invoice_whatsapp_number; ?>"
-                />
+                    <hr />
+                    <label>Totaal incl. BTW</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_product_total_tax"
+                        placeholder="Totaal incl. BTW"
+                        value="<?php echo $invoice_product_total_tax; ?>"
+                    />
 
-                <hr />
-                <label>KvK</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_chamber_of_commerce"
-                    placeholder="KvK"
-                    value="<?php echo $invoice_chamber_of_commerce; ?>"
-                />
+                    <hr />
+                    <label>Whatsapp</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_whatsapp"
+                        placeholder="Whatsapp"
+                        value="<?php echo $invoice_whatsapp; ?>"
+                    />
 
-                <hr />
-                <label>83863966</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_chamber_of_commerce_number"
-                    placeholder="83863966"
-                    value="<?php echo $invoice_chamber_of_commerce_number; ?>"
-                />
+                    <hr />
+                    <label>+31 (0) 683 926 724</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_whatsapp_number"
+                        placeholder="+31 (0) 683 926 724"
+                        value="<?php echo $invoice_whatsapp_number; ?>"
+                    />
 
-                <hr />
-                <label>Telefoon</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_phone_title"
-                    placeholder="Telefoon"
-                    value="<?php echo $invoice_phone_title; ?>"
-                />
+                    <hr />
+                    <label>KvK</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_chamber_of_commerce"
+                        placeholder="KvK"
+                        value="<?php echo $invoice_chamber_of_commerce; ?>"
+                    />
 
-                <hr />
-                <label>+31 (0) 180 700 209</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_phone_number"
-                    placeholder="+31 (0) 180 700 209"
-                    value="<?php echo $invoice_phone_number; ?>"
-                />
+                    <hr />
+                    <label>83863966</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_chamber_of_commerce_number"
+                        placeholder="83863966"
+                        value="<?php echo $invoice_chamber_of_commerce_number; ?>"
+                    />
 
-                <hr />
-                <label>NL003883640B02</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_vat_number"
-                    placeholder="NL003883640B02"
-                    value="<?php echo $invoice_vat_number; ?>"
-                />
+                    <hr />
+                    <label>Telefoon</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_phone_title"
+                        placeholder="Telefoon"
+                        value="<?php echo $invoice_phone_title; ?>"
+                    />
 
-                <hr />
-                <label>Bank</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_bank"
-                    placeholder="Bank"
-                    value="<?php echo $invoice_bank; ?>"
-                />
+                    <hr />
+                    <label>+31 (0) 180 700 209</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_phone_number"
+                        placeholder="+31 (0) 180 700 209"
+                        value="<?php echo $invoice_phone_number; ?>"
+                    />
 
-                <hr />
-                <label>NL89KNAB0411483749</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_bank_number"
-                    placeholder="NL89KNAB0411483749"
-                    value="<?php echo $invoice_bank_number; ?>"
-                />
+                    <hr />
+                    <label>NL003883640B02</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_vat_number"
+                        placeholder="NL003883640B02"
+                        value="<?php echo $invoice_vat_number; ?>"
+                    />
 
-                <hr />
-                <label>BIC</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_bank_bic"
-                    placeholder="BIC"
-                    value="<?php echo $invoice_bank_bic; ?>"
-                />
+                    <hr />
+                    <label>Bank</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_bank"
+                        placeholder="Bank"
+                        value="<?php echo $invoice_bank; ?>"
+                    />
 
-                <hr />
-                <label>KNABNL2H</label>
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_bank_bic_number"
-                    placeholder="KNABNL2H"
-                    value="<?php echo $invoice_bank_bic_number; ?>"
-                />
+                    <hr />
+                    <label>NL89KNAB0411483749</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_bank_number"
+                        placeholder="NL89KNAB0411483749"
+                        value="<?php echo $invoice_bank_number; ?>"
+                    />
 
-                <hr />
-                <label
-                    >Cornelis Trooststraat 15 - 2923 CE - Krimpen aan den IJssel -
-                    Nederland</label
-                >
-                <input
-                    type="text"
-                    class="fancy-input"
-                    name="invoice_address"
-                    placeholder="Cornelis Trooststraat 15 - 2923 CE - Krimpen aan den IJssel - Nederland"
-                    value="<?php echo $invoice_address; ?>"
-                />
+                    <hr />
+                    <label>BIC</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_bank_bic"
+                        placeholder="BIC"
+                        value="<?php echo $invoice_bank_bic; ?>"
+                    />
 
-                <hr />
-                <hr />
+                    <hr />
+                    <label>KNABNL2H</label>
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_bank_bic_number"
+                        placeholder="KNABNL2H"
+                        value="<?php echo $invoice_bank_bic_number; ?>"
+                    />
+
+                    <hr />
+                    <label
+                        >Cornelis Trooststraat 15 - 2923 CE - Krimpen aan den IJssel -
+                        Nederland</label
+                    >
+                    <input
+                        type="text"
+                        class="fancy-input"
+                        name="invoice_address"
+                        placeholder="Cornelis Trooststraat 15 - 2923 CE - Krimpen aan den IJssel - Nederland"
+                        value="<?php echo $invoice_address; ?>"
+                    />
+
+                    <hr />
+                    <hr />
                 </div>
             </div>
             <button type="submit" class="fancy-button" name="save-settings">Save</button>

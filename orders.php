@@ -125,7 +125,7 @@ function bol_com_api_orders_page() {
                 }
             }
             
-            echo "<h3>API " . ($index+1) . "</h3>";
+            echo "<h3>Bol.com API " . ($index+1) . ": " . $api['api_name'] . "</h3>";
 
             // get orders from the table in the database
             global $wpdb;
